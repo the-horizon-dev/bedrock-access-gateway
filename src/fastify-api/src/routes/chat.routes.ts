@@ -13,16 +13,20 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
       },
     },
     async (req, rep) => {
+      /* Streamed completions ------------------------------------ */
       if (req.body.stream) {
         rep.raw.setHeader('Content-Type', 'text/event-stream');
+
         for await (const chunk of bedrockChatStream(req.body)) {
-          // fastify-sse-v2 helper
-          rep.sse({ data: chunk as any });
+          if (chunk) rep.sse({ data: chunk as any });
         }
-        return; // stream closed by plugin
+        rep.sseContext.source.end();              // close SSE cleanly
+        return;                                   // stream already flushed
       }
+
+      /* Non-streamed completion --------------------------------- */
       const out = await bedrockChat(req.body);
-      return out as any; // JSON auto-serialized
+      return out as any;                          // auto-serialized JSON
     },
   );
 };

@@ -1,5 +1,5 @@
 import tap from 'tap';
-import build from '../src/server.js';
+import build from '../src/server.ts';
 
 tap.test('health route', async (t) => {
   const app = await build();
