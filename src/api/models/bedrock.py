@@ -124,29 +124,36 @@ def list_bedrock_models() -> dict:
     return model_list
 
 
-# Initialize the model list.
-bedrock_model_list = list_bedrock_models()
+# Cache settings for model list refresh
+MODEL_CACHE_TTL = 300  # seconds
+bedrock_model_list: dict = {}
+_last_model_refresh = 0.0
+
+
+def get_cached_model_list(force_refresh: bool = False) -> dict:
+    """Return cached model list, refresh when TTL expires."""
+    global bedrock_model_list, _last_model_refresh
+    if force_refresh or not bedrock_model_list or time.time() - _last_model_refresh > MODEL_CACHE_TTL:
+        bedrock_model_list = list_bedrock_models()
+        _last_model_refresh = time.time()
+    return bedrock_model_list
 
 
 class BedrockModel(BaseChatModel):
     def list_models(self) -> list[str]:
-        """Always refresh the latest model list"""
-        global bedrock_model_list
-        bedrock_model_list = list_bedrock_models()
-        return list(bedrock_model_list.keys())
+        """Return a list of supported models using cached data."""
+        return list(get_cached_model_list().keys())
 
     def validate(self, chat_request: ChatRequest):
         """Perform basic validation on requests"""
         error = ""
+        model_list = get_cached_model_list()
         # check if model is supported
-        if chat_request.model not in bedrock_model_list.keys():
+        if chat_request.model not in model_list.keys():
             error = f"Unsupported model {chat_request.model}, please use models API to get a list of supported models"
 
         if error:
-            raise HTTPException(
-                status_code=400,
-                detail=error,
-            )
+            raise HTTPException(status_code=400, detail=error)
 
     async def _invoke_bedrock(self, chat_request: ChatRequest, stream=False):
         """Common logic for invoke bedrock models"""
@@ -200,9 +207,13 @@ class BedrockModel(BaseChatModel):
         return chat_response
 
     async def _async_iterate(self, stream):
-        """Helper method to convert sync iterator to async iterator"""
-        for chunk in stream:
-            await run_in_threadpool(lambda: chunk)
+        """Iterate over a blocking stream in a thread pool."""
+        iterator = iter(stream)
+        while True:
+            try:
+                chunk = await run_in_threadpool(iterator.__next__)
+            except StopIteration:
+                break
             yield chunk
 
     async def chat_stream(self, chat_request: ChatRequest) -> AsyncIterable[bytes]:
@@ -324,9 +335,9 @@ class BedrockModel(BaseChatModel):
             else:
                 # ignore others, such as system messages
                 continue
-        return self._reframe_multi_payloard(messages)
+        return self._reframe_multi_payload(messages)
 
-    def _reframe_multi_payloard(self, messages: list) -> list:
+    def _reframe_multi_payload(self, messages: list) -> list:
         """Receive messages and reformat them to comply with the Claude format
 
         With OpenAI format requests, it's not a problem to repeatedly receive messages from the same role, but
@@ -669,7 +680,7 @@ class BedrockModel(BaseChatModel):
 
     @staticmethod
     def is_supported_modality(model_id: str, modality: str = "IMAGE") -> bool:
-        model = bedrock_model_list.get(model_id, {})
+        model = get_cached_model_list().get(model_id, {})
         modalities = model.get("modalities", [])
         if modality in modalities:
             return True

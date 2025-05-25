@@ -1,5 +1,3 @@
-[中文](./README_CN.md)
-
 # Bedrock Access Gateway
 
 OpenAI-compatible RESTful APIs for Amazon Bedrock
@@ -32,6 +30,18 @@ Please check [Usage Guide](./docs/Usage.md) for more details about how to use th
 
 
 ## Get Started
+
+### Quick Start
+
+Run the Fastify server locally:
+
+```bash
+cd fastify-api
+npm install
+npm start
+```
+
+The API base url will be `http://localhost:8000`.
 
 ### Prerequisites
 
@@ -212,13 +222,15 @@ Replace the repo url in the CloudFormation template before you deploy.
 
 ### Can I run this locally
 
-Yes, you can run this locally, e.g. run below command under `src` folder:
+Yes, you can run this locally using the Fastify server. Run the commands below:
 
 ```bash
-uvicorn api.app:app --host 0.0.0.0 --port 8000
+cd fastify-api
+npm install
+npm start
 ```
 
-The API base url should look like `http://localhost:8000/api/v1`.
+The API base url should look like `http://localhost:8000`.
 
 ### Any performance sacrifice or latency increase by using the proxy APIs
 
