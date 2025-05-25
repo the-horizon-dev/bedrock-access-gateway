@@ -127,25 +127,18 @@ def list_bedrock_models() -> dict:
     return model_list
 
 
-# Cache settings for model list refresh
-MODEL_CACHE_TTL = int(os.environ.get("MODEL_CACHE_TTL", "300"))  # seconds
+MODEL_CACHE_TTL = 300  # seconds
 bedrock_model_list: dict = {}
 _last_model_refresh = 0.0
-_model_cache_lock = Lock()
-
 
 def get_cached_model_list(force_refresh: bool = False) -> dict:
-    """Return cached model list and refresh it when TTL expires."""
+    """Return cached model list, refresh when TTL expires."""
     global bedrock_model_list, _last_model_refresh
-    now = time.monotonic()
-    if force_refresh or not bedrock_model_list or now - _last_model_refresh > MODEL_CACHE_TTL:
-        with _model_cache_lock:
-            now = time.monotonic()
-            if force_refresh or not bedrock_model_list or now - _last_model_refresh > MODEL_CACHE_TTL:
-                bedrock_model_list = list_bedrock_models()
-                _last_model_refresh = now
-    return bedrock_model_list
+    if force_refresh or not bedrock_model_list or time.time() - _last_model_refresh > MODEL_CACHE_TTL:
+        bedrock_model_list = list_bedrock_models()
+        _last_model_refresh = time.time()
 
+    return bedrock_model_list
 
 class BedrockModel(BaseChatModel):
     def list_models(self) -> list[str]:
@@ -219,7 +212,7 @@ class BedrockModel(BaseChatModel):
         iterator = iter(stream)
         while True:
             try:
-                chunk = await asyncio.to_thread(iterator.__next__)
+                chunk = await run_in_threadpool(iterator.__next__)
             except StopIteration:
                 break
             yield chunk
