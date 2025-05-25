@@ -31,7 +31,7 @@ await server.register(FastifySSEPlugin);                 // SSE streaming
 server.register(fp(async (instance) => {
   instance.addHook('onRequest', async (req, rep) => {
     const auth = req.headers.authorization?.replace('Bearer ', '');
-    if (auth !== req.server.env.API_KEY) {
+    if (auth !== (req.server as any).env.API_KEY) {
       rep.code(401).send({ error: 'Invalid API Key' });
     }
   });

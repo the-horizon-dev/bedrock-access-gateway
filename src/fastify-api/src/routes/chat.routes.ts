@@ -1,6 +1,6 @@
 import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
-import { ChatRequest, ChatResponse } from '../schemas/chat.ts';
-import { bedrockChat, bedrockChatStream } from '../services/bedrock.ts';
+import { ChatRequest, ChatResponse } from '../schemas/chat.js';
+import { bedrockChat, bedrockChatStream } from '../services/bedrock.js';
 
 const plugin: FastifyPluginAsyncTypebox = async (f) => {
   // POST /completions
@@ -17,12 +17,12 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
         rep.raw.setHeader('Content-Type', 'text/event-stream');
         for await (const chunk of bedrockChatStream(req.body)) {
           // fastify-sse-v2 helper
-          rep.sse({ data: chunk });
+          rep.sse({ data: chunk as any });
         }
         return; // stream closed by plugin
       }
       const out = await bedrockChat(req.body);
-      return out; // JSON auto-serialized
+      return out as any; // JSON auto-serialized
     },
   );
 };
