@@ -1,9 +1,12 @@
+import asyncio
 import base64
 import json
 import logging
+import os
 import re
 import time
 from abc import ABC
+from threading import Lock
 from typing import AsyncIterable, Iterable, Literal
 
 import boto3
@@ -124,11 +127,9 @@ def list_bedrock_models() -> dict:
     return model_list
 
 
-# Cache settings for model list refresh
 MODEL_CACHE_TTL = 300  # seconds
 bedrock_model_list: dict = {}
 _last_model_refresh = 0.0
-
 
 def get_cached_model_list(force_refresh: bool = False) -> dict:
     """Return cached model list, refresh when TTL expires."""
@@ -136,8 +137,8 @@ def get_cached_model_list(force_refresh: bool = False) -> dict:
     if force_refresh or not bedrock_model_list or time.time() - _last_model_refresh > MODEL_CACHE_TTL:
         bedrock_model_list = list_bedrock_models()
         _last_model_refresh = time.time()
-    return bedrock_model_list
 
+    return bedrock_model_list
 
 class BedrockModel(BaseChatModel):
     def list_models(self) -> list[str]:
