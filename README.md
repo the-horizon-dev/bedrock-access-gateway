@@ -43,6 +43,10 @@ npm start
 
 The API base url will be `http://localhost:8000`.
 
+If you are migrating an existing FastAPI deployment, see
+[FastAPI_to_Fastify.md](./docs/FastAPI_to_Fastify.md) for guidance on porting
+the Python routes and models to this TypeScript Fastify implementation.
+
 ### Prerequisites
 
 Please make sure you have met below prerequisites:
