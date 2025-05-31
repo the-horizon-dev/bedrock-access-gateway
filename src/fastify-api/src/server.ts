@@ -1,7 +1,5 @@
 import Fastify, { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fastifyCors from '@fastify/cors';
-import fastifySwagger from '@fastify/swagger';
-import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyEnv from '@fastify/env';
 import { FastifySSEPlugin } from 'fastify-sse-v2';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
@@ -88,43 +86,6 @@ const authPlugin: FastifyPluginAsync = fp(async (fastify: FastifyInstance) => {
  */
 const app: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   fastify.log.info('Initializing Bedrock Gateway application...');
-
-  // Register Swagger documentation
-  await fastify.register(fastifySwagger, {
-    mode: 'dynamic',
-    openapi: {
-      info: {
-        title: 'Bedrock Gateway API',
-        description: 'AWS Bedrock API Gateway with authentication and rate limiting',
-        version: '1.0.0',
-      },
-      tags: [
-        { name: 'Chat', description: 'Chat completion endpoints' },
-        { name: 'Embeddings', description: 'Text embedding endpoints' },
-        { name: 'Models', description: 'Model information endpoints' },
-        { name: 'System', description: 'System health and status endpoints' },
-      ],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-        },
-      },
-    },
-  });
-
-  await fastify.register(fastifySwaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: false,
-    },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
-  });
 
   // Register CORS
   await fastify.register(fastifyCors, {
