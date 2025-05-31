@@ -17,7 +17,7 @@ build_and_push_images() {
     local IMAGE_NAME=$1
     local TAG=$2
     local ENABLE_MULTI_ARCH=${3:-true}  # Parameter for enabling multi-arch build, default is true
-    local DOCKERFILE_PATH=${4:-"../src/Dockerfile_ecs"}  # Parameter for Dockerfile path, default is "../src/Dockerfile_ecs"
+    local DOCKERFILE_PATH=${4:-"../src/fastify-api/Dockerfile"}  # Parameter for Dockerfile path, default is "../src/fastify-api/Dockerfile"
 
     # Build Docker image for each architecture
     if [ "$ENABLE_MULTI_ARCH" == "true" ]; then
@@ -73,5 +73,5 @@ build_and_push_images() {
     done
 }
 
-build_and_push_images "bedrock-proxy-api" "$TAG" "false" "../src/Dockerfile"
-build_and_push_images "bedrock-proxy-api-ecs" "$TAG"
+build_and_push_images "bedrock-proxy-api" "$TAG" "false" "../src/fastify-api/Dockerfile"
+build_and_push_images "bedrock-proxy-api-ecs" "$TAG" "false" "../src/fastify-api/Dockerfile"

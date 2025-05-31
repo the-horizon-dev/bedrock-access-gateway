@@ -3,12 +3,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "npm run build:ts && node dist/index.js",
+    "start": "npm run build && node dist/index.js",
+    "build": "tsc",
     "build:ts": "tsc",
     "watch:ts": "tsc -w",
     "dev": "npm run build:ts && concurrently -k -p \"[{name}]\" -n \"TypeScript,App\" -c \"yellow.bold,cyan.bold\" \"npm:watch:ts\" \"npm:dev:start\"",
     "dev:start": "node dist/index.js",
-    "test": "tap -J"
+    "lint": "echo 'no lint step'",
+    "type-check": "tsc --noEmit",
+    "test": "tap"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock": "^3.817.0",

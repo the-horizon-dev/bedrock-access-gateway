@@ -43,10 +43,6 @@ npm start
 
 The API base url will be `http://localhost:8000`.
 
-If you are migrating an existing FastAPI deployment, see
-[FastAPI_to_Fastify.md](./docs/FastAPI_to_Fastify.md) for guidance on porting
-the Python routes and models to this TypeScript Fastify implementation.
-
 ### Prerequisites
 
 Please make sure you have met below prerequisites:
@@ -63,7 +59,7 @@ The following diagram illustrates the reference architecture. Note that it also 
 
 You can also choose to use [AWS Fargate](https://aws.amazon.com/fargate/) behind the ALB instead of [AWS Lambda](https://aws.amazon.com/lambda/), the main difference is the latency of the first byte for streaming response (Fargate is lower).
 
-Alternatively, you can use Lambda Function URL to replace ALB, see [example](https://github.com/awslabs/aws-lambda-web-adapter/tree/main/examples/fastapi-response-streaming)
+Alternatively, you can use Lambda Function URL to replace ALB; see [this streaming example](https://github.com/awslabs/aws-lambda-web-adapter/tree/main/examples/fastapi-response-streaming)
 
 ### Deployment
 
@@ -220,7 +216,7 @@ You can use the [Models API](./docs/Usage.md#models-api) to get/refresh a list o
 
 ### Can I build and use my own ECR image
 
-Yes, you can clone the repo and build the container image by yourself (`src/Dockerfile`) and then push to your ECR repo. You can use `scripts/push-to-ecr.sh`
+Yes, you can clone the repo and build the container image by yourself (`src/fastify-api/Dockerfile`) and then push to your ECR repo. You can use `scripts/push-to-ecr.sh`
 
 Replace the repo url in the CloudFormation template before you deploy.
 
@@ -240,7 +236,7 @@ The API base url should look like `http://localhost:8000`.
 
 Comparing with the AWS SDK call, the referenced architecture will bring additional latency on response, you can try and test that on you own.
 
-Also, you can use Lambda Web Adapter + Function URL (see [example](https://github.com/awslabs/aws-lambda-web-adapter/tree/main/examples/fastapi-response-streaming)) to replace ALB or AWS Fargate to replace Lambda to get better performance on streaming response.
+Also, you can use Lambda Web Adapter + Function URL (see [streaming example](https://github.com/awslabs/aws-lambda-web-adapter/tree/main/examples/fastapi-response-streaming)) to replace ALB or AWS Fargate to replace Lambda to get better performance on streaming response.
 
 ### Any plan to support SageMaker models?
 

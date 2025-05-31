@@ -4,7 +4,6 @@ This guide helps AI agents (such as OpenAI Codex) understand the repository and 
 
 ## Repository Layout
 
-- `/src/api` – legacy FastAPI implementation (Python)
 - `/src/fastify-api` – primary Fastify service in TypeScript
   - `src/routes` – HTTP endpoints
   - `src/services` – business logic and AWS SDK wrappers
