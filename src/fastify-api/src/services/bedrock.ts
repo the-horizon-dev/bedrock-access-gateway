@@ -96,33 +96,43 @@ export async function embed(req: any) {
 }
 
 export async function listModels(): Promise<any> {
-  const cmd = new ListFoundationModelsCommand({ byProvider: 'Anthropic' });
-  const resp = await bedrockClient.send(cmd);
-  
-  // Add OpenAI model mappings
-  const openAIModels = Object.keys(MODEL_MAPPING).map(id => ({
+  // Add OpenAI model mappings that are always returned
+  const openAIModels = Object.keys(MODEL_MAPPING).map((id) => ({
     id,
     object: 'model',
     created: Math.floor(Date.now() / 1000),
     owned_by: 'openai-mapped',
   }));
-  
-  const anthropicModels = (resp.modelSummaries ?? [])
-    .filter((m: any) =>
-      (m.responseStreamingSupported ?? true) &&
-      ['ACTIVE', 'LEGACY'].includes(m.modelLifecycle?.status ?? 'ACTIVE'),
-    )
-    .map((m: any) => ({
-      id: m.modelId ?? 'unknown',
-      object: 'model',
-      created: Math.floor(Date.now() / 1000),
-      owned_by: 'anthropic',
-    }));
-  
-  return { 
-    object: 'list', 
-    data: [...openAIModels, ...anthropicModels] 
-  };
+
+  try {
+    const cmd = new ListFoundationModelsCommand({ byProvider: 'Anthropic' });
+    const resp = await bedrockClient.send(cmd);
+
+    const anthropicModels = (resp.modelSummaries ?? [])
+      .filter(
+        (m: any) =>
+          (m.responseStreamingSupported ?? true) &&
+          ['ACTIVE', 'LEGACY'].includes(m.modelLifecycle?.status ?? 'ACTIVE'),
+      )
+      .map((m: any) => ({
+        id: m.modelId ?? 'unknown',
+        object: 'model',
+        created: Math.floor(Date.now() / 1000),
+        owned_by: 'anthropic',
+      }));
+
+    return {
+      object: 'list',
+      data: [...openAIModels, ...anthropicModels],
+    };
+  } catch (err) {
+    // When AWS credentials are missing or API call fails, return a minimal list
+    console.error('Failed to list models from Bedrock:', err);
+    return {
+      object: 'list',
+      data: openAIModels,
+    };
+  }
 }
 
 /* ---------------- helpers ---------------- */
