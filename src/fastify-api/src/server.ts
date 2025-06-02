@@ -165,24 +165,29 @@ export default async function buildServer(): Promise<FastifyInstance> {
 
     // Global error handler - OpenAI compatible format
     server.setErrorHandler((error, request, reply) => {
-      request.log.error({
-        error: error.message,
-        stack: error.stack,
-        url: request.url,
-        method: request.method,
-      }, 'Unhandled error');
+      request.log.error(
+        {
+          error: error.message,
+          stack: error.stack,
+          url: request.url,
+          method: request.method,
+        },
+        'Unhandled error',
+      );
 
       const statusCode = error.statusCode || 500;
       const isDevelopment = server.config.NODE_ENV === 'development';
 
-      reply.code(statusCode).send({
-        error: {
-          message: error.message,
-          type: 'api_error',
-          code: error.code || 'internal_error',
-          ...(isDevelopment && { stack: error.stack }),
-        }
-      });
+      if (!reply.raw.writableEnded) {
+        reply.code(statusCode).send({
+          error: {
+            message: error.message,
+            type: 'api_error',
+            code: error.code || 'internal_error',
+            ...(isDevelopment && { stack: error.stack }),
+          },
+        });
+      }
     });
 
     // Not found handler - OpenAI compatible format

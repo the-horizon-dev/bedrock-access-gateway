@@ -26,28 +26,37 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
           const streamId = `chatcmpl-\${Date.now()}`;
           const created = Math.floor(Date.now() / 1000);
 
-          // Send initial data
-          rep.sse({ data: JSON.stringify({
-            id: streamId,
-            object: 'chat.completion.chunk',
-            created: created,
-            model: req.body.model,
-            choices: [{
-              index: 0,
-              delta: { role: 'assistant' },
-              finish_reason: null
-            }]
-          })});
+          // Send initial chunk so client knows the stream started
+          rep.sse({
+            data: JSON.stringify({
+              id: streamId,
+              object: 'chat.completion.chunk',
+              created,
+              model: req.body.model,
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: 'assistant' },
+                  finish_reason: null,
+                },
+              ],
+            }),
+          });
 
-          for await (const chunk of bedrockChatStream(req.body)) {
-            if (chunk) {
-              rep.sse({ data: JSON.stringify(chunk) });
+          try {
+            for await (const chunk of bedrockChatStream(req.body)) {
+              if (chunk) {
+                rep.sse({ data: JSON.stringify(chunk) });
+              }
             }
+            // Send [DONE] message on normal completion
+            rep.sse({ data: '[DONE]' });
+          } catch (err) {
+            // Emit error to the client then end the stream
+            rep.sse({ data: JSON.stringify({ error: (err as Error).message || 'stream error' }) });
+          } finally {
+            rep.sseContext.source.end();
           }
-
-          // Send [DONE] message
-          rep.sse({ data: '[DONE]' });
-          rep.sseContext.source.end();
           return;
         }
 
