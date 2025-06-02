@@ -28,7 +28,7 @@ function mapModelId(openAIModel: string): string {
 export async function bedrockChat(req: any) {
   const bedrockModel = mapModelId(req.model);
   const command = new ConverseCommand(
-    toBedrockPayload({ ...req, model: bedrockModel })
+    toBedrockPayload({ ...req, model: bedrockModel }),
   );
   const { output } = await client.send(command);
   return fromBedrockPayload(output, req.model, bedrockModel);
@@ -37,7 +37,7 @@ export async function bedrockChat(req: any) {
 export async function* bedrockChatStream(req: any) {
   const bedrockModel = mapModelId(req.model);
   const command = new ConverseStreamCommand(
-    toBedrockPayload({ ...req, model: bedrockModel })
+    toBedrockPayload({ ...req, model: bedrockModel }),
   );
   const { stream } = await client.send(command);
   if (!stream) return;
@@ -48,7 +48,9 @@ export async function* bedrockChatStream(req: any) {
   // Estimativas de tokens
   let outputTokenEstimate = 0;
   const promptText = req.messages
-    .map((m: any) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+    .map((m: any) =>
+      typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+    )
     .join(" ");
   const promptTokens = promptText.split(/\s+/).length;
 
@@ -57,7 +59,8 @@ export async function* bedrockChatStream(req: any) {
 
     // Estimar tokens a partir dos deltas
     if (chunk.contentBlockDelta?.delta?.text) {
-      outputTokenEstimate += chunk.contentBlockDelta.delta.text.split(/\s+/).length;
+      outputTokenEstimate +=
+        chunk.contentBlockDelta.delta.text.split(/\s+/).length;
     }
 
     if (openAIChunk) yield openAIChunk;
@@ -85,17 +88,16 @@ export async function* bedrockChatStream(req: any) {
   };
 }
 
-
 export async function embed(req: any) {
   // Map embedding model if needed
   const modelId =
     req.model === "text-embedding-ada-002"
       ? "amazon.titan-embed-text-v1"
       : req.model === "text-embedding-3-small"
-      ? "amazon.titan-embed-text-v1"
-      : req.model === "text-embedding-3-large"
-      ? "amazon.titan-embed-text-v2:0"
-      : req.model;
+        ? "amazon.titan-embed-text-v1"
+        : req.model === "text-embedding-3-large"
+          ? "amazon.titan-embed-text-v2:0"
+          : req.model;
 
   const inputs = Array.isArray(req.input) ? req.input : [req.input];
   const embeddings = [];
@@ -180,7 +182,7 @@ function toBedrockPayload(req: any) {
 function fromBedrockPayload(
   output: any,
   originalModel: string,
-  bedrockModel: string
+  bedrockModel: string,
 ) {
   const completionId = `chatcmpl-${Date.now()}`;
   const created = Math.floor(Date.now() / 1000);
@@ -210,7 +212,9 @@ function fromBedrockPayload(
       prompt_tokens: inputTokens ?? assistantMessage.split(/\s+/).length, // fallback: word count estimate
       completion_tokens: outputTokens ?? assistantMessage.split(/\s+/).length,
       total_tokens:
-        totalTokens ?? ((inputTokens ?? 0) + (outputTokens ?? assistantMessage.split(/\s+/).length)),
+        totalTokens ??
+        (inputTokens ?? 0) +
+          (outputTokens ?? assistantMessage.split(/\s+/).length),
     },
     system_fingerprint: bedrockModel,
   };
@@ -230,7 +234,7 @@ function mapChunkToOpenAI(
   chunk: any,
   streamId: string,
   created: number,
-  model: string
+  model: string,
 ) {
   if (chunk.messageStop) {
     return {

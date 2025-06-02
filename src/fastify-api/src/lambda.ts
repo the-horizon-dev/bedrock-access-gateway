@@ -1,6 +1,10 @@
-import awsLambdaFastify from '@fastify/aws-lambda';
-import { APIGatewayProxyEvent, APIGatewayProxyResult, Context } from 'aws-lambda';
-import buildServer from './server.js';
+import awsLambdaFastify from "@fastify/aws-lambda";
+import {
+  APIGatewayProxyEvent,
+  APIGatewayProxyResult,
+  Context,
+} from "aws-lambda";
+import buildServer from "./server.js";
 
 /**
  * Lambda handler with proper TypeScript types.
@@ -11,24 +15,26 @@ let proxy: ReturnType<typeof awsLambdaFastify> | null = null;
 
 export const handler = async (
   event: APIGatewayProxyEvent,
-  context: Context
+  context: Context,
 ): Promise<APIGatewayProxyResult> => {
   try {
     // Log request details
-    console.log('Lambda Request:', {
+    console.log("Lambda Request:", {
       requestId: context.awsRequestId,
       httpMethod: event.httpMethod,
       path: event.path,
       queryStringParameters: event.queryStringParameters,
       headers: event.headers,
       body: event.body,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
     // Initialize proxy only once (cold start optimization)
     if (!proxy) {
       const app = await buildServer();
-      proxy = awsLambdaFastify(app, { binaryMimeTypes: ['application/octet-stream'] });
+      proxy = awsLambdaFastify(app, {
+        binaryMimeTypes: ["application/octet-stream"],
+      });
       await app.ready(); // Ensure all plugins are loaded
     }
 
@@ -43,15 +49,15 @@ export const handler = async (
       });
     });
   } catch (error) {
-    console.error('Lambda handler error:', error);
+    console.error("Lambda handler error:", error);
     return {
       statusCode: 500,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        error: 'Internal Server Error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Internal Server Error",
+        message: error instanceof Error ? error.message : "Unknown error",
       }),
     };
   }

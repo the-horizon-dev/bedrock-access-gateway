@@ -1,27 +1,28 @@
-import { FastifyPluginAsyncTypebox } from '@fastify/type-provider-typebox';
-import { ChatRequest, ChatResponse } from '../schemas/chat.js';
-import { bedrockChat, bedrockChatStream } from '../services/bedrock.js';
+import { FastifyPluginAsyncTypebox } from "@fastify/type-provider-typebox";
+import { ChatRequest, ChatResponse } from "../schemas/chat.js";
+import { bedrockChat, bedrockChatStream } from "../services/bedrock.js";
 
 const plugin: FastifyPluginAsyncTypebox = async (f) => {
   // POST /v1/chat/completions - OpenAI compatible endpoint
   f.post(
-    '/completions',
+    "/completions",
     {
       schema: {
         body: ChatRequest,
         response: { 200: ChatResponse },
-        tags: ['Chat'],
-        summary: 'Create chat completion',
-        description: 'Creates a completion for the chat message (OpenAI compatible)'
+        tags: ["Chat"],
+        summary: "Create chat completion",
+        description:
+          "Creates a completion for the chat message (OpenAI compatible)",
       },
     },
     async (req, rep) => {
       try {
         /* Streamed completions ------------------------------------ */
         if (req.body.stream) {
-          rep.raw.setHeader('Content-Type', 'text/event-stream');
-          rep.raw.setHeader('Cache-Control', 'no-cache');
-          rep.raw.setHeader('Connection', 'keep-alive');
+          rep.raw.setHeader("Content-Type", "text/event-stream");
+          rep.raw.setHeader("Cache-Control", "no-cache");
+          rep.raw.setHeader("Connection", "keep-alive");
 
           const streamId = `chatcmpl-${Date.now()}`;
           const created = Math.floor(Date.now() / 1000);
@@ -30,13 +31,13 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
           rep.sse({
             data: JSON.stringify({
               id: streamId,
-              object: 'chat.completion.chunk',
+              object: "chat.completion.chunk",
               created,
               model: req.body.model,
               choices: [
                 {
                   index: 0,
-                  delta: { role: 'assistant' },
+                  delta: { role: "assistant" },
                   finish_reason: null,
                 },
               ],
@@ -50,10 +51,14 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
               }
             }
             // Send [DONE] message on normal completion
-            rep.sse({ data: '[DONE]' });
+            rep.sse({ data: "[DONE]" });
           } catch (err) {
             // Emit error to the client then end the stream
-            rep.sse({ data: JSON.stringify({ error: (err as Error).message || 'stream error' }) });
+            rep.sse({
+              data: JSON.stringify({
+                error: (err as Error).message || "stream error",
+              }),
+            });
           } finally {
             rep.sseContext.source.end();
           }
@@ -64,7 +69,10 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
         const response = await bedrockChat(req.body);
         return response as any;
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to generate completion';
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to generate completion";
         throw new Error(errorMessage);
       }
     },
