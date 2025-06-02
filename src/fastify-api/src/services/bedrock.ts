@@ -45,11 +45,46 @@ export async function* bedrockChatStream(req: any) {
   const streamId = `chatcmpl-${Date.now()}`;
   const created = Math.floor(Date.now() / 1000);
 
+  // Estimativas de tokens
+  let outputTokenEstimate = 0;
+  const promptText = req.messages
+    .map((m: any) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+    .join(" ");
+  const promptTokens = promptText.split(/\s+/).length;
+
   for await (const chunk of stream) {
     const openAIChunk = mapChunkToOpenAI(chunk, streamId, created, req.model);
+
+    // Estimar tokens a partir dos deltas
+    if (chunk.contentBlockDelta?.delta?.text) {
+      outputTokenEstimate += chunk.contentBlockDelta.delta.text.split(/\s+/).length;
+    }
+
     if (openAIChunk) yield openAIChunk;
   }
+
+  // Enviar chunk final com usage simulado, se necessário
+  yield {
+    id: streamId,
+    object: "chat.completion.chunk",
+    created,
+    model: req.model,
+    choices: [
+      {
+        index: 0,
+        delta: {},
+        finish_reason: "stop",
+      },
+    ],
+    usage: {
+      prompt_tokens: promptTokens,
+      completion_tokens: outputTokenEstimate,
+      total_tokens: promptTokens + outputTokenEstimate,
+    },
+    system_fingerprint: bedrockModel,
+  };
 }
+
 
 export async function embed(req: any) {
   // Map embedding model if needed
@@ -150,6 +185,12 @@ function fromBedrockPayload(
   const completionId = `chatcmpl-${Date.now()}`;
   const created = Math.floor(Date.now() / 1000);
 
+  const assistantMessage = output.message?.content?.[0]?.text || "";
+
+  const inputTokens = output.usage?.inputTokens;
+  const outputTokens = output.usage?.outputTokens;
+  const totalTokens = output.usage?.totalTokens;
+
   return {
     id: completionId,
     object: "chat.completion",
@@ -160,15 +201,16 @@ function fromBedrockPayload(
         index: 0,
         message: {
           role: "assistant",
-          content: output.message?.content?.[0]?.text || "",
+          content: assistantMessage,
         },
         finish_reason: mapFinishReason(output.stopReason),
       },
     ],
     usage: {
-      prompt_tokens: output.usage?.inputTokens || 0,
-      completion_tokens: output.usage?.outputTokens || 0,
-      total_tokens: output.usage?.totalTokens || 0,
+      prompt_tokens: inputTokens ?? assistantMessage.split(/\s+/).length, // fallback: word count estimate
+      completion_tokens: outputTokens ?? assistantMessage.split(/\s+/).length,
+      total_tokens:
+        totalTokens ?? ((inputTokens ?? 0) + (outputTokens ?? assistantMessage.split(/\s+/).length)),
     },
     system_fingerprint: bedrockModel,
   };
