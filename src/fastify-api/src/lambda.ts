@@ -14,6 +14,17 @@ export const handler = async (
   context: Context
 ): Promise<APIGatewayProxyResult> => {
   try {
+    // Log request details
+    console.log('Lambda Request:', {
+      requestId: context.awsRequestId,
+      httpMethod: event.httpMethod,
+      path: event.path,
+      queryStringParameters: event.queryStringParameters,
+      headers: event.headers,
+      body: event.body,
+      timestamp: new Date().toISOString()
+    });
+
     // Initialize proxy only once (cold start optimization)
     if (!proxy) {
       const app = await buildServer();

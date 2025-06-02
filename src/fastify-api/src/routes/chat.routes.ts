@@ -23,7 +23,7 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
           rep.raw.setHeader('Cache-Control', 'no-cache');
           rep.raw.setHeader('Connection', 'keep-alive');
 
-          const streamId = `chatcmpl-\${Date.now()}`;
+          const streamId = `chatcmpl-${Date.now()}`;
           const created = Math.floor(Date.now() / 1000);
 
           // Send initial chunk so client knows the stream started

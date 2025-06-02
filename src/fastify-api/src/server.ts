@@ -1,56 +1,13 @@
 import Fastify, { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fastifyCors from '@fastify/cors';
-import fastifyEnv from '@fastify/env';
 import { FastifySSEPlugin } from 'fastify-sse-v2';
 import { TypeBoxTypeProvider } from '@fastify/type-provider-typebox';
 import fp from 'fastify-plugin';
 
+import { registerEnvConfig } from './config/env.js';
 import chatRoutes from './routes/chat.routes.js';
 import embeddingsRoutes from './routes/embeddings.routes.js';
 import modelsRoutes from './routes/models.routes.js';
-
-// Define configuration type
-declare module 'fastify' {
-  interface FastifyInstance {
-    config: {
-      API_KEY: string;
-      AWS_REGION: string;
-      NODE_ENV: string;
-      CORS_ORIGIN: string;
-      RATE_LIMIT_MAX: number;
-      RATE_LIMIT_TIME_WINDOW: string;
-    }
-  }
-}
-
-/**
- * Environment configuration schema
- */
-const envSchema = {
-  type: 'object',
-  required: ['API_KEY', 'AWS_REGION'],
-  properties: {
-    API_KEY: { type: 'string' },
-    AWS_REGION: { type: 'string' },
-    NODE_ENV: { 
-      type: 'string', 
-      default: 'development',
-      enum: ['development', 'production', 'test']
-    },
-    CORS_ORIGIN: { 
-      type: 'string', 
-      default: '*' 
-    },
-    RATE_LIMIT_MAX: { 
-      type: 'number', 
-      default: 100 
-    },
-    RATE_LIMIT_TIME_WINDOW: { 
-      type: 'string', 
-      default: '1 minute' 
-    },
-  },
-} as const;
 
 /**
  * Authentication plugin
@@ -107,9 +64,9 @@ const app: FastifyPluginAsync = async (fastify: FastifyInstance) => {
   await fastify.register(authPlugin);
 
   // Register OpenAI-compatible API routes
-  await fastify.register(chatRoutes, { prefix: '/v1/chat' });
-  await fastify.register(embeddingsRoutes, { prefix: '/v1/embeddings' });
-  await fastify.register(modelsRoutes, { prefix: '/v1/models' });
+  await fastify.register(chatRoutes, { prefix: 'api/v1/chat' });
+  await fastify.register(embeddingsRoutes, { prefix: 'api/v1/embeddings' });
+  await fastify.register(modelsRoutes, { prefix: 'api/v1/models' });
 
   // Health check endpoint
   fastify.get('/health', {
@@ -151,14 +108,9 @@ export default async function buildServer(): Promise<FastifyInstance> {
     requestIdHeader: 'x-request-id',
     requestIdLogLabel: 'reqId',
   }).withTypeProvider<TypeBoxTypeProvider>();
-
   try {
     // Register environment configuration with validation
-    await server.register(fastifyEnv, {
-      confKey: 'config',
-      schema: envSchema,
-      dotenv: true, // Load from .env file if available
-    });
+    await registerEnvConfig(server);
 
     // Register main application
     await server.register(app);
@@ -194,7 +146,7 @@ export default async function buildServer(): Promise<FastifyInstance> {
     server.setNotFoundHandler((request, reply) => {
       reply.code(404).send({
         error: {
-          message: `Route \${request.method} \${request.url} not found`,
+          message: `Route not found`,
           type: 'invalid_request_error',
           code: 'not_found'
         }
