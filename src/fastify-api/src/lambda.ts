@@ -17,8 +17,8 @@ export const handler = async (
     // Initialize proxy only once (cold start optimization)
     if (!proxy) {
       const app = await buildServer();
+      proxy = awsLambdaFastify(app, { binaryMimeTypes: ['application/octet-stream'] });
       await app.ready(); // Ensure all plugins are loaded
-      proxy = awsLambdaFastify(app);
     }
 
     // Handle the request
