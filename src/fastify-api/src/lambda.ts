@@ -18,14 +18,50 @@ export const handler = async (
   context: Context,
 ): Promise<APIGatewayProxyResult> => {
   try {
-    // Log request details
+    // Log request details with truncated body
     console.log("Lambda Request:", {
       requestId: context.awsRequestId,
       httpMethod: event.httpMethod,
       path: event.path,
       queryStringParameters: event.queryStringParameters,
       headers: event.headers,
-      body: event.body,
+      body: event.body
+        ? (() => {
+            try {
+              const parsedBody = JSON.parse(event.body);
+              // Check if this is a chat completion request
+              if (parsedBody.messages && Array.isArray(parsedBody.messages)) {
+                // Truncate each message's content while preserving structure
+                const truncatedMessages = parsedBody.messages.map(
+                  (msg: any) => ({
+                    ...msg,
+                    content: msg.content
+                      ? typeof msg.content === "string"
+                        ? msg.content.substring(0, 100) +
+                          (msg.content.length > 100 ? "..." : "")
+                        : msg.content
+                      : undefined,
+                  }),
+                );
+                return JSON.stringify({
+                  ...parsedBody,
+                  messages: truncatedMessages,
+                });
+              }
+              // For non-chat requests, truncate the whole body
+              return (
+                event.body.substring(0, 100) +
+                (event.body.length > 100 ? "..." : "")
+              );
+            } catch {
+              // If JSON parsing fails, truncate the raw body
+              return (
+                event.body.substring(0, 100) +
+                (event.body.length > 100 ? "..." : "")
+              );
+            }
+          })()
+        : undefined,
       timestamp: new Date().toISOString(),
     });
 

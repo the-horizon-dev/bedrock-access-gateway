@@ -3,7 +3,7 @@ import {
   EmbeddingsRequest,
   EmbeddingsResponse,
 } from "../schemas/embeddings.js";
-import { embed } from "../services/bedrock.js";
+import { EmbeddingsController } from "../controllers/EmbeddingsController.js";
 
 const plugin: FastifyPluginAsyncTypebox = async (f) => {
   f.post(
@@ -14,7 +14,7 @@ const plugin: FastifyPluginAsyncTypebox = async (f) => {
         response: { 200: EmbeddingsResponse },
       },
     },
-    async (req) => embed(req.body) as any,
+    EmbeddingsController.create,
   );
 };
 

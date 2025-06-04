@@ -45,6 +45,27 @@ const authPlugin: FastifyPluginAsync = fp(async (fastify: FastifyInstance) => {
 });
 
 /**
+ * Request logging plugin to debug request bodies
+ */
+const requestDebugPlugin: FastifyPluginAsync = fp(
+  async (fastify: FastifyInstance) => {
+    fastify.addHook("preHandler", async (request, reply) => {
+      if (request.body) {
+        fastify.log.info(
+          {
+            url: request.url,
+            method: request.method,
+            contentType: request.headers["content-type"],
+            body: request.body,
+          },
+          "Received request with body",
+        );
+      }
+    });
+  },
+);
+
+/**
  * Application plugin that registers all routes and middleware
  */
 const app: FastifyPluginAsync = async (fastify: FastifyInstance) => {
@@ -60,6 +81,17 @@ const app: FastifyPluginAsync = async (fastify: FastifyInstance) => {
 
   // Register SSE support
   await fastify.register(FastifySSEPlugin);
+
+  // Register enhanced request logging
+  const requestLoggingPlugin = await import("./plugins/logging.js").then(
+    (m) => m.default,
+  );
+  await fastify.register(requestLoggingPlugin);
+
+  // Register request debugging (development only)
+  if (fastify.config.NODE_ENV === "development") {
+    await fastify.register(requestDebugPlugin);
+  }
 
   // Register authentication
   await fastify.register(authPlugin);
@@ -114,7 +146,35 @@ export default async function buildServer(): Promise<FastifyInstance> {
     disableRequestLogging: process.env.NODE_ENV === "production",
     requestIdHeader: "x-request-id",
     requestIdLogLabel: "reqId",
+    // Configure JSON parsing options
+    bodyLimit: 10 * 1024 * 1024, // 10MB
+    ignoreTrailingSlash: true,
+    ajv: {
+      customOptions: {
+        removeAdditional: false, // Keep additional properties not in schema
+        coerceTypes: true, // Attempt to coerce types when possible
+        useDefaults: true, // Apply default values from schemas
+        allErrors: true, // Return all errors, not just the first one
+      },
+    },
   }).withTypeProvider<TypeBoxTypeProvider>();
+
+  // Configure custom parser options
+  server.addContentTypeParser(
+    "application/json",
+    {
+      parseAs: "string", // Parse as string first to handle malformed JSON gracefully
+    },
+    (req, body, done) => {
+      try {
+        const json = JSON.parse(body as string);
+        done(null, json);
+      } catch (err) {
+        done(new Error("Invalid JSON"), undefined);
+      }
+    },
+  );
+
   try {
     // Register environment configuration with validation
     await registerEnvConfig(server);
@@ -124,14 +184,18 @@ export default async function buildServer(): Promise<FastifyInstance> {
 
     // Global error handler - OpenAI compatible format
     server.setErrorHandler((error, request, reply) => {
+      // Log detailed error information
       request.log.error(
         {
           error: error.message,
           stack: error.stack,
           url: request.url,
           method: request.method,
+          body: request.body,
+          statusCode: error.statusCode,
+          validation: error.validation,
         },
-        "Unhandled error",
+        "Error occurred while processing request",
       );
 
       const statusCode = error.statusCode || 500;
@@ -141,9 +205,11 @@ export default async function buildServer(): Promise<FastifyInstance> {
         reply.code(statusCode).send({
           error: {
             message: error.message,
-            type: "api_error",
+            type: error.validation ? "validation_error" : "api_error",
             code: error.code || "internal_error",
             ...(isDevelopment && { stack: error.stack }),
+            ...(isDevelopment &&
+              error.validation && { validation: error.validation }),
           },
         });
       }
@@ -153,7 +219,7 @@ export default async function buildServer(): Promise<FastifyInstance> {
     server.setNotFoundHandler((request, reply) => {
       reply.code(404).send({
         error: {
-          message: `Route not found`,
+          message: `Route not found: ${request.method} ${request.url}`,
           type: "invalid_request_error",
           code: "not_found",
         },
