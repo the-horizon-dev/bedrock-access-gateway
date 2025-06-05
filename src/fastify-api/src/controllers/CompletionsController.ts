@@ -9,18 +9,14 @@ import { ChatRequest as ChatRequestSchema } from "../schemas/chat.js";
 export class CompletionsController {
   /**
    * Main handler wired by the route plugin.
-   * Mirrors the OpenAI Chat Completions semantics (May‑2025 spec).
+   * Mirrors the OpenAI Chat Completions semantics.
    */
   static async handle(
     req: FastifyRequest<{ Body: typeof ChatRequestSchema }>,
     rep: FastifyReply,
   ) {
     try {
-      // Log full request body for debugging
-      req.log.debug({ body: req.body }, "Chat completion request received");
-
       if (!req.body) {
-        req.log.error("Request body is undefined");
         return rep.code(400).send({
           error: {
             message: "Missing request body",
@@ -33,18 +29,6 @@ export class CompletionsController {
       const { stream, stream_options, tools, tool_choice, ...bedrockReq } =
         req.body as any;
 
-      // Log extracted parameters
-      req.log.debug(
-        {
-          stream,
-          hasTools: Boolean(tools),
-          toolChoice: tool_choice,
-          model: bedrockReq.model,
-        },
-        "Extracted request parameters",
-      );
-
-      /* ─────────────────────────────── STREAM REPLY ─────────────────────────────── */
       if (stream) {
         rep.raw.writeHead(200, {
           "Content-Type": "text/event-stream",
@@ -80,47 +64,36 @@ export class CompletionsController {
         try {
           for await (const chunk of bedrockChatStream(bedrockReq)) {
             if (aborted) break;
+            
+            // Handle error chunks
+            if ('error' in chunk) {
+              send(chunk);
+              break;
+            }
+            
             lastChunk = chunk;
             send(chunk);
           }
-          const tail =
-            stream_options?.include_usage && lastChunk?.usage
-              ? lastChunk.usage
-              : "[DONE]";
-          send(tail);
+          
+          // Send usage data if requested
+          if (stream_options?.include_usage && lastChunk?.usage) {
+            send(lastChunk.usage);
+          }
+          
+          send("[DONE]");
         } catch (err) {
-          req.log.error({ error: err }, "Error in streaming response");
           send({ error: (err as Error).message ?? "stream error" });
         } finally {
           rep.raw.off("close", onClose);
           rep.sseContext.source.end();
         }
-        return; // 🚫 Fastify: do not proceed to default serializer
+        return;
       }
 
       /* ─────────────────────────── NON‑STREAM REPLY ────────────────────────────── */
-      try {
-        // If tools are present, log them for debugging
-        if (tools) {
-          req.log.info(
-            {
-              toolsCount: tools.length,
-              toolNames: tools
-                .map((t: any) => t.function?.name)
-                .filter(Boolean),
-            },
-            "Request includes tools",
-          );
-        }
-
-        const response = await bedrockChat(bedrockReq);
-        return rep.send(response);
-      } catch (err) {
-        req.log.error({ error: err }, "Error in non-streaming response");
-        throw new Error((err as Error).message);
-      }
+      const response = await bedrockChat(bedrockReq);
+      return rep.send(response);
     } catch (err) {
-      req.log.error({ error: err }, "Unhandled error in CompletionsController");
       throw err;
     }
   }

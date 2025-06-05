@@ -1,18 +1,5 @@
 import { Type } from "@sinclair/typebox";
 
-/* ------------------------------------------------------------------------
- * OpenAI‑compatible Chat schema (May 2025 spec)
- * ------------------------------------------------------------------------
- *  ▸  https://platform.openai.com/docs/api-reference/chat
- *  ▸  https://github.com/openai/openai-openapi  (mirror)
- *
- *  This file is **source‑of‑truth** for request/response validation used by the
- *  Fastify Bedrock gateway.  All fields present in the public OpenAI spec up to
- *  2025‑05‑01 are represented here, including multimodal content‑parts and the
- *  latest function‑calling → tools contract.
- * --------------------------------------------------------------------- */
-
-/* ---------- Message content parts (multimodal) ------------------------ */
 export const ContentText = Type.Object({
   type: Type.Literal("text"),
   text: Type.String(),
@@ -33,15 +20,17 @@ export const ContentImageUrl = Type.Object({
 });
 
 export const MessageContent = Type.Union([
-  Type.String(), // legacy text‑only
-  Type.Array(Type.Union([ContentText, ContentImageUrl])), // multimodal
+  Type.String(),
+  Type.Array(Type.Union([ContentText, ContentImageUrl])),
 ]);
 
-/* ---------- Tool / function typing ----------------------------------- */
-const FunctionCall = Type.Object({
+export const FunctionSpec = Type.Object({
   name: Type.String(),
-  arguments: Type.String(), // JSON string of arguments
+  description: Type.Optional(Type.String()),
+  parameters: Type.Optional(Type.Any()), // optional for legacy payloads
 });
+
+const FunctionCall = FunctionSpec;
 
 export const ToolCall = Type.Object({
   id: Type.String(),
@@ -49,7 +38,6 @@ export const ToolCall = Type.Object({
   function: FunctionCall,
 });
 
-//   ── Streaming deltas come in pieces (fields optional) ───────────────
 export const ToolCallDelta = Type.Object({
   index: Type.Integer(),
   id: Type.Optional(Type.String()),
@@ -57,54 +45,54 @@ export const ToolCallDelta = Type.Object({
   function: Type.Optional(Type.Partial(FunctionCall)),
 });
 
-/* ---------- Chat messages -------------------------------------------- */
+const ToolWrapper = Type.Object({
+  type: Type.Optional(Type.Literal("function")),
+  function: FunctionSpec,
+});
+const BareTool = FunctionSpec;
+const FlatToolWithType = Type.Intersect([
+  Type.Object({ type: Type.Optional(Type.Literal("function")) }),
+  FunctionSpec,
+]);
+
 export const Message = Type.Object({
   role: Type.Union([
     Type.Literal("system"),
     Type.Literal("user"),
     Type.Literal("assistant"),
-    Type.Literal("function"), // ← legacy, still accepted
+    Type.Literal("function"),
     Type.Literal("tool"),
   ]),
-  // Content rules vary by role (spec details): we allow the superset here.
   content: Type.Optional(MessageContent),
-  // Developer‑named message (e.g. when simulating multiple users)
   name: Type.Optional(Type.String()),
-  // Assistant‑>function call (pre‑tools, still accepted)
   function_call: Type.Optional(FunctionCall),
-  // Assistant initiating tool calls (parallel)
   tool_calls: Type.Optional(Type.Array(ToolCall)),
-  // Tool response must carry the original call‑id
   tool_call_id: Type.Optional(Type.String()),
 });
 
-/* ---------- /chat/completions request -------------------------------- */
 export const ChatRequest = Type.Object({
-  model: Type.String({
-    description:
-      "ID of the model to use (OpenAI model name or mapped Bedrock).",
-  }),
-  messages: Type.Array(Message, {
-    description: "History messages forming the conversation.",
-  }),
+  model: Type.String({ description: "Model id (OpenAI or mapped)." }),
+  messages: Type.Array(Message, { description: "Conversation history." }),
 
-  /* — Function‑calling / Tools — */
   tools: Type.Optional(
-    Type.Array(
-      Type.Object({
-        type: Type.Literal("function"),
-        function: Type.Object({
-          name: Type.String(),
-          description: Type.Optional(Type.String()),
-          parameters: Type.Any(), // full JSON‑Schema
-        }),
-      }),
-    ),
+    Type.Array(Type.Union([ToolWrapper, FlatToolWithType, BareTool])),
   ),
+
   tool_choice: Type.Optional(
     Type.Union([
       Type.Literal("none"),
       Type.Literal("auto"),
+      Type.Literal("required"),
+
+      Type.Object({ type: Type.Literal("none") }),
+      Type.Object({ type: Type.Literal("auto") }),
+      Type.Object({ type: Type.Literal("required") }),
+
+      Type.Intersect([
+        Type.Object({ type: Type.Optional(Type.Literal("function")) }),
+        Type.Object({ name: Type.String() }),
+      ]),
+
       Type.Object({
         type: Type.Literal("function"),
         function: Type.Object({ name: Type.String() }),
@@ -112,7 +100,6 @@ export const ChatRequest = Type.Object({
     ]),
   ),
 
-  /* — Sampling & generation controls — */
   temperature: Type.Optional(Type.Number({ minimum: 0, maximum: 2 })),
   top_p: Type.Optional(Type.Number({ minimum: 0, maximum: 1 })),
   n: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -122,7 +109,6 @@ export const ChatRequest = Type.Object({
   logit_bias: Type.Optional(Type.Record(Type.String(), Type.Number())),
   seed: Type.Optional(Type.Integer()),
 
-  /* — Streaming — */
   stream: Type.Optional(Type.Boolean({ default: false })),
   stream_options: Type.Optional(
     Type.Object({
@@ -130,9 +116,8 @@ export const ChatRequest = Type.Object({
     }),
   ),
 
-  /* — Stop & response format — */
   stop: Type.Optional(
-    Type.Union([Type.String(), Type.Array(Type.String({}), { maxItems: 4 })]),
+    Type.Union([Type.String(), Type.Array(Type.String(), { maxItems: 4 })]),
   ),
   response_format: Type.Optional(
     Type.Object({
@@ -140,18 +125,13 @@ export const ChatRequest = Type.Object({
     }),
   ),
 
-  /* — Logprobs beta — */
   logprobs: Type.Optional(
-    Type.Object({
-      top_logprobs: Type.Integer({ minimum: 0, maximum: 5 }),
-    }),
+    Type.Object({ top_logprobs: Type.Integer({ minimum: 0, maximum: 5 }) }),
   ),
 
-  /* — Misc — */
   user: Type.Optional(Type.String()),
-});
+}, { additionalProperties: true });
 
-/* ---------- /chat/completions response -------------------------------- */
 export const ChoiceMessage = Type.Object({
   role: Type.Literal("assistant"),
   content: Type.Union([Type.String(), Type.Null()]),
@@ -186,7 +166,6 @@ export const ChatResponse = Type.Object({
   system_fingerprint: Type.Optional(Type.String()),
 });
 
-/* ---------- Streaming chunk ------------------------------------------ */
 export const ChoiceDelta = Type.Object({
   role: Type.Optional(Type.Literal("assistant")),
   content: Type.Optional(Type.String()),
@@ -213,5 +192,5 @@ export const ChatChunk = Type.Object({
       ),
     }),
   ),
-  usage: Type.Optional(Usage), // present only if include_usage=true
+  usage: Type.Optional(Usage),
 });

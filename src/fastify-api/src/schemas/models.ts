@@ -1,13 +1,5 @@
 import { Type } from "@sinclair/typebox";
 
-/* ------------------------------------------------------------------------
- * OpenAI-compatible Models schemas (May‑2025 spec)
- * --------------------------------------------------------------------- */
-
-/* ================================
- *  /v1/models
- * ==============================*/
-
 export const ModelPermission = Type.Object({
   id: Type.String(),
   object: Type.Literal("model_permission"),
